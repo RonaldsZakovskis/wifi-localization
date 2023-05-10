@@ -7,15 +7,13 @@ import wifi
 def scan_access_points(interface: str) -> List[Dict]:
     # Scanning for access points and transforming the returned map object to list
     access_points = list(wifi.Cell.all(interface))
-    print(access_points)
-    print(type(access_points))
 
     access_points_temp = []
 
     for i in access_points:
         # Note: Cell type also has a attribute encryption_type, which is None if encrypted is False, or one of "wep",
         #   "wpa" or "wpa2" if encrypted is True, but the problem is that an access point can support both WPA and WPA2,
-        #   but this library will only show one of them and you don't know which one it will show..., so probably this
+        #   but this library will only show one of them, and you don't know which one it will show..., so probably this
         #   value shouldn't be used, but if needed, I can just quickly write code that eliminates the need for the wifi
         #   package
         access_points_temp.append({
