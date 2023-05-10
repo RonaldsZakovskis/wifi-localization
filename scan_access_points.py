@@ -5,10 +5,22 @@ import wifi
 
 
 def scan_access_points(interface: str) -> List[Dict]:
+    """ Scans nearby access points from the given interface and returns
+        information about each of the access points detected.
+
+    Args:
+        interface: Name of the network interface, for example, "wlan0". If you
+            are not sure about your necessary network interface name, enter the
+            "iwconfig" in the terminal.
+
+    Returns:
+        parsed_access_points: Access points which the "wifi" package detected
+            parsed into a more useful format.
+    """
     # Scanning for access points and transforming the returned map object to list
     access_points = list(wifi.Cell.all(interface))
 
-    access_points_temp = []
+    parsed_access_points = []
 
     for i in access_points:
         # Note: Cell type also has a attribute encryption_type, which is None if encrypted is False, or one of "wep",
@@ -16,7 +28,7 @@ def scan_access_points(interface: str) -> List[Dict]:
         #   but this library will only show one of them, and you don't know which one it will show..., so probably this
         #   value shouldn't be used, but if needed, I can just quickly write code that eliminates the need for the wifi
         #   package
-        access_points_temp.append({
+        parsed_access_points.append({
             "ssid": i.ssid,
             "signal": i.signal,
             "quality": i.quality,
@@ -28,7 +40,7 @@ def scan_access_points(interface: str) -> List[Dict]:
             "mode": i.mode,
             "encryption_type": i.encryption_type
         })
-    return access_points_temp
+    return parsed_access_points
 
 
 if __name__ == "__main__":  # If file is run directly
