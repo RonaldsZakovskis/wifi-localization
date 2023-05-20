@@ -1,0 +1,1 @@
+NETWORK_INTERFACE = "wlp0s20f3"
