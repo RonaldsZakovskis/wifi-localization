@@ -15,6 +15,7 @@ conda activate wifi-localization
 pip3 install wifi
 pip3 install pandas
 pip3 install scikit-learn
+pip3 install matplotlib
 ```
 
 <!---
@@ -25,6 +26,7 @@ get their RSSI value.
 create dataframes.
 "scikit-learn" package is used by the code in the fingerprinting_based
 directory to use SVM.
+"matplotlib" package is used in the visualize file.
 -->
 
 ### Usage

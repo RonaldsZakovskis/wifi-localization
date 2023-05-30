@@ -9,6 +9,7 @@ from typing import Dict, List, Tuple, Union
 import numpy as np
 
 
+# # TODO: Define type Union[Tuple[float], Tuple[float, float], Tuple[float, float, float]]
 class SignalStrengthLocalizer(object):
     def __init__(self, access_points: List[Dict], dimensions: int = 2):
         """ Sets up the access points and dimensions, to have easier time

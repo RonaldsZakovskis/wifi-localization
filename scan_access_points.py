@@ -19,7 +19,13 @@ def scan_access_points(interface: str) -> List[Dict]:
     """
     # Scanning for access points and transforming the returned map object to
     #   list
-    access_points = list(wifi.Cell.all(interface))
+    access_points = None
+    while access_points is None:
+        try:
+            access_points = list(wifi.Cell.all(interface))
+        except Exception as e:
+            print(e)
+            print("An error occured!")
 
     parsed_access_points = []
 
@@ -49,3 +55,4 @@ def scan_access_points(interface: str) -> List[Dict]:
 if __name__ == "__main__":  # If file is run directly
     my_access_points = scan_access_points(interface="wlp0s20f3")
     pprint(my_access_points)
+    print(len(my_access_points))

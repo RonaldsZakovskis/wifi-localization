@@ -1,3 +1,4 @@
+import math
 import time
 from typing import List
 
@@ -11,7 +12,8 @@ from scan_access_points import scan_access_points
 def do_coordinates_predictions_with_fingerprinting(
     df: pd.DataFrame,
     access_point_names: List[str],
-    coordinate_dimensions: int = 2
+    coordinate_dimensions: int = 2,
+    test_df: pd.DataFrame = None
 ):
     """ Trains a Linear Regression model on the passed data filtering to only
         the given access points and dimensions, then tries to predict the
@@ -54,22 +56,65 @@ def do_coordinates_predictions_with_fingerprinting(
     interface = c.NETWORK_INTERFACE
     time_passed = time.time()
 
-    print("Predicting...")
-    while True:
-        access_points = scan_access_points(interface=interface)
+    if test_df is None:  # TODO: Do we need this, Idk, maybe realtime, but then need other, dik think about
+        print("Predicting...")
+        while True:
+            access_points = scan_access_points(interface=interface)
+            values = [0] * len(access_point_names)
+            for access_point in access_points:
+                column_name = f"{access_point['address']} ({access_point['ssid']})"
+                for index, name in enumerate(access_point_names):
+                    if column_name == name:
+                        values[index] = access_point["signal"]
+
+            # Make a prediction
+            predictions = model.predict([values])
+            # Summarize the prediction
+            predictions = predictions[0]
+            print(f"{values} -> {predictions}")
+
+            if time.time() - time_passed >= 60:
+                break
+        print("Success!")
+    else:
+
         values = [0] * len(access_point_names)
-        for access_point in access_points:
-            column_name = f"{access_point['address']} ({access_point['ssid']})"
-            for index, name in enumerate(access_point_names):
-                if column_name == name:
-                    values[index] = access_point["signal"]
+        total = 0.0
+        for index, row in test_df.iterrows():
+            for ap_index, access_point in enumerate(access_point_names):
+                values[ap_index] = row[access_point]  # This assumes that there are no NaNs
+            actual_coordinates = [row[axis] for axis in ["x", "y", "z"][:coordinate_dimensions]]
 
-        # Make a prediction
-        predictions = model.predict([values])
-        # Summarize the prediction
-        predictions = predictions[0]
-        print(f"{values} -> {predictions}")
+            # Make a prediction
+            predictions = model.predict([values])
+            # Summarize the prediction
+            predicted_coordinates = list(predictions[0])
 
-        if time.time() - time_passed >= 60:
-            break
-    print("Success!")
+            distance_error = math.dist(actual_coordinates, predicted_coordinates)
+            # print(f"Distance error: {distance_error}")
+            total += distance_error
+        print(f"Error in distance: {total / len(test_df)}")
+
+        """          total += 1
+            if predictions == row['room_index']:
+                correct += 1
+            confusion_matrix[int(row['room_index'])][int(predictions)] += 1
+
+            print(f"Predicted {predictions}, Actual {row['room_index']}")
+            print(f"{values} -> {room_id_to_name[predictions]}")
+            print(f"Rolling precision = {correct / total}\n")
+            # Do some analysis, how far are the wrong predictions, hopefully there arent any that are many far away
+            # Rolling precision = 0.7481422924901185
+        pprint(confusion_matrix)
+        for actual in range(17):
+            confusion_sum = sum(confusion_matrix[actual])
+            a = 0 if confusion_sum == 0 else confusion_matrix[actual][actual] / confusion_sum
+            a *= 100
+            print(f"{actual} was guessed correctly {a:.2f}% of times")
+
+        accuracy = correct / total
+        print(f"Final accuracy: {accuracy}")"""
+
+        # plt.imshow(confusion_matrix)
+        # plt.title("Actual vs. predicted")
+        # plt.show()
