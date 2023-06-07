@@ -202,3 +202,25 @@ def walking_data_gatherer(interface: str, how_many_seconds: int = 60):
         counter += 1
 
     df.to_csv("movement-data.csv")
+
+
+def long_data_gatherer(interface: str, how_many_seconds: int, pause_seconds):
+    print("Data gathering started!")
+
+    # Setup
+    counter = 0
+    df = pd.DataFrame()
+    start = time.time()
+
+    while time.time() - start < how_many_seconds:
+        time_passed = time.time() - start
+        access_points = scan_access_points(interface=interface)
+        df.loc[counter, "time_passed"] = time.time() - start
+        print(f"Time passed: {time_passed:.3f}/{how_many_seconds:.3f} seconds ||| APs detected: {len(access_points)}")
+        for access_point in access_points:
+            column_name = f"{access_point['address']} ({access_point['ssid']})"
+            df.loc[counter, column_name] = access_point["signal"]
+        counter += 1
+        time.sleep(pause_seconds)
+
+    df.to_csv("long-data.csv")

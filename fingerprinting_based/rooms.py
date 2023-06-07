@@ -1,3 +1,4 @@
+import math
 import time
 from pprint import pprint
 from typing import Dict, List
@@ -5,16 +6,21 @@ from typing import Dict, List
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.svm import SVC
+from sklearn.metrics import f1_score, confusion_matrix, ConfusionMatrixDisplay
 
 import constants as c
 from scan_access_points import scan_access_points
+from helpers import get_batch_mean_df, get_df_with_specific_measurements
 
 
 def do_room_predictions_with_fingerprinting(
-    df: pd.DataFrame,
-    access_point_names: List[str],
-    room_id_to_name: Dict[int, str],
-    test_df: pd.DataFrame = None
+    training_df: pd.DataFrame,
+    testing_df: pd.DataFrame = None,
+    specific_measurements = None,
+    access_point_names: List[str] = [],
+    room_id_to_name: Dict[int, str] = {},
+    training_batch_size: int = None,
+    testing_batch_size: int = None,
 ):
     """ Trains an SVC model on the passed data filtering to only the given
     access points, then tries to predict the room for a minute.
@@ -34,31 +40,52 @@ def do_room_predictions_with_fingerprinting(
     Returns:
         None.
     """
+    if training_batch_size:
+        training_df = get_batch_mean_df(df=training_df, batch_size=training_batch_size)
+
+    if specific_measurements:
+        training_df = get_df_with_specific_measurements(df=training_df, specific_measurements=specific_measurements)
+
+    # TODO: It seems that batching for training gives benefits, but make sure
+
+    nan_value = -99  # TODO: Not sure what to do with this
+
     x = []
     y = []
 
-    print(df.columns)
-    for index, row in df.iterrows():
-        # print(access_point_names)
-        print(row)
-        x.append([row[name] for name in access_point_names])
-        y.append(row["room_index"])
+    for index, row in training_df.iterrows():
+        values = [nan_value] * len(access_point_names)
+        for ap_index, access_point in enumerate(access_point_names):
+            if isinstance(access_point, str):
+                if not math.isnan(row[access_point]):
+                    values[ap_index] = row[access_point]
+            else:
+                sub_values = [nan_value] * len(access_point)
+                for sub_ap_index, name in enumerate(access_point):
+                    if not math.isnan(row[name]):
+                        sub_values[sub_ap_index] = row[name]
+                values[ap_index] = max(sub_values)
+        x.append(values)
+        y.append(row[c.ROOM_INDEX_COLUMN])
 
-    print(f"Example of x: {x[0]}")
-    print(f"Example of y: {y[0]} ({room_id_to_name[y[0]]})")
+    # print(f"Example of x: {x[0]}")
+    # print(f"Example of y: {y[0]} ({room_id_to_name[y[0]]})")
 
     # Define the model
     # Let's use Support Vector Classification (SVC)
     model = SVC()
     # Fit the model
-    print("Training...")
+    # print("Training...")
     model.fit(x, y)
 
-    interface = c.NETWORK_INTERFACE
-    time_passed = time.time()
-
-    if test_df is None:  # TODO: Do we need this, Idk, maybe realtime, but then need other, dik think about
-        print("Predicting...")
+    if testing_df is None:
+        # TODO: Do we need this, Idk, maybe realtime, but then need other, dik think about
+        # TODO: Maybe throw this out in different realtime functions
+        """#print("Predicting...")
+        
+        interface = c.NETWORK_INTERFACE
+        time_passed = time.time()
+        
         while True:
             access_points = scan_access_points(interface=interface)
             values = [0] * len(access_point_names)
@@ -72,16 +99,21 @@ def do_room_predictions_with_fingerprinting(
             predictions = model.predict([values])
             # Summarize the prediction
             predictions = predictions[0]
-            print(f"{values} -> {room_id_to_name[predictions]}")
+            #print(f"{values} -> {room_id_to_name[predictions]}")
 
             if time.time() - time_passed >= 60:
                 break
-        print("Success!")
+        #print("Success!")"""
+        pass
     else:
-        # print(test_df)
+        if testing_batch_size:
+            testing_df = get_batch_mean_df(df=testing_df, batch_size=testing_batch_size)
+
+        # TODO: How to draw confusioon matrix if you have a lot of uunmerger batches
+        #   Harder to say real guesses, the most chosen? Maybe.
         total = 0
         correct = 0
-        confusion_matrix = [  # np array maybe easier
+        """confusion_matrix = [  # np array maybe easier
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -99,13 +131,22 @@ def do_room_predictions_with_fingerprinting(
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        ]
+        ]"""
 
-        values = [0] * len(access_point_names)
-        # Wrong DF -> Wrong Results
-        for index, row in test_df.iterrows():
+        values = [nan_value] * len(access_point_names)
+        y_true = []
+        y_pred = []
+        for index, row in testing_df.iterrows():
             for ap_index, access_point in enumerate(access_point_names):
-                values[ap_index] = row[access_point]  # This assumes that there are no NaNs
+                if isinstance(access_point, str):
+                    if not math.isnan(row[access_point]):
+                        values[ap_index] = row[access_point]
+                else:
+                    sub_values = [nan_value] * len(access_point)
+                    for sub_ap_index, name in enumerate(access_point):
+                        if not math.isnan(row[name]):
+                            sub_values[sub_ap_index] = row[name]
+                    values[ap_index] = max(sub_values)
 
             # Make a prediction
             predictions = model.predict([values])
@@ -113,25 +154,44 @@ def do_room_predictions_with_fingerprinting(
             predictions = predictions[0]
 
             total += 1
-            if predictions == row['room_index']:
+            if predictions == row[c.ROOM_INDEX_COLUMN]:
                 correct += 1
-            confusion_matrix[int(row['room_index'])][int(predictions)] += 1
 
-            print(f"Predicted {predictions}, Actual {row['room_index']}")
-            print(f"{values} -> {room_id_to_name[predictions]}")
-            print(f"Rolling precision = {correct / total}\n")
+            y_pred.append(predictions)
+            y_true.append(row[c.ROOM_INDEX_COLUMN])
+
+            # confusion_matrix[int(row[c.ROOM_INDEX_COLUMN])][int(predictions)] += 1
+
+            # print(f"Predicted {predictions}, Actual {row['room_index']}")
+            # print(f"{values} -> {room_id_to_name[predictions]}")
+            # print(f"Rolling precision = {correct / total}\n")
             # Do some analysis, how far are the wrong predictions, hopefully there arent any that are many far away
             # Rolling precision = 0.7481422924901185
-        pprint(confusion_matrix)
-        for actual in range(17):
-            confusion_sum = sum(confusion_matrix[actual])
-            a = 0 if confusion_sum == 0 else confusion_matrix[actual][actual] / confusion_sum
-            a *= 100
-            print(f"{actual} was guessed correctly {a:.2f}% of times")
 
-        accuracy = correct / total
-        print(f"Final accuracy: {accuracy}")
+        weighted_f1_score = f1_score(y_true=y_true, y_pred=y_pred, average="weighted") * 100
+        print(f"Weighted F1 Score: {weighted_f1_score:.2f}%")
+
+        # conf_matrix = confusion_matrix(y_true=y_true, y_pred=y_pred)
+        # print(conf_matrix)
+        # Should I do % of guesses or smt?
+
+        # pprint(confusion_matrix)
+        #for actual in range(17):
+        #    confusion_sum = sum(confusion_matrix[actual])
+        #    a = 0 if confusion_sum == 0 else confusion_matrix[actual][actual] / confusion_sum
+        #    a *= 100
+        #    # print(f"{actual} was guessed correctly {a:.2f}% of times")
+        # TODO: Get a nice way to represent the confusion matrix
+
+        # disp = ConfusionMatrixDisplay(confusion_matrix=conf_matrix)
+        # disp.plot()
+        # plt.show()
 
         # plt.imshow(confusion_matrix)
         # plt.title("Actual vs. predicted")
         # plt.show()
+
+        # Let's print the accuracy in %
+        accuracy = (correct / total) * 100
+        print(f"Final accuracy: {accuracy:.2f}%")
+    # TODO: Get #room.measurement to prediction (later in heatmap)

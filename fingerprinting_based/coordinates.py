@@ -1,19 +1,25 @@
 import math
 import time
-from typing import List
+from typing import List, Dict
 
+import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 
 import constants as c
 from scan_access_points import scan_access_points
+from helpers import get_batch_mean_df, get_df_with_specific_measurements
 
 
 def do_coordinates_predictions_with_fingerprinting(
-    df: pd.DataFrame,
-    access_point_names: List[str],
-    coordinate_dimensions: int = 2,
-    test_df: pd.DataFrame = None
+    training_df: pd.DataFrame,
+    testing_df: pd.DataFrame = None,
+    specific_measurements = None,
+    access_point_names: List[str] = [],
+    room_id_to_name: Dict[int, str] = {},
+    training_batch_size: int = None,
+    testing_batch_size: int = None,
+    coordinate_dimensions: int = 2,  # This is extra for rooms
 ):
     """ Trains a Linear Regression model on the passed data filtering to only
         the given access points and dimensions, then tries to predict the
@@ -37,27 +43,49 @@ def do_coordinates_predictions_with_fingerprinting(
     Returns:
         None.
     """
+    from helpers import get_batch_mean_df
+
+    if training_batch_size:
+        training_df = get_batch_mean_df(df=training_df, batch_size=training_batch_size)
+
+    if specific_measurements:
+        training_df = get_df_with_specific_measurements(df=training_df, specific_measurements=specific_measurements)
+
+    nan_value = -99  # TODO: Not sure what to do with this
+
     x = []
     y = []
 
-    for index, row in df.iterrows():
-        x.append([row[name] for name in access_point_names])
+    for index, row in training_df.iterrows():
+        values = [nan_value] * len(access_point_names)
+        for ap_index, access_point in enumerate(access_point_names):
+            if isinstance(access_point, str):
+                if not math.isnan(row[access_point]):
+                    values[ap_index] = row[access_point]
+            else:
+                sub_values = [nan_value] * len(access_point)
+                for sub_ap_index, name in enumerate(access_point):
+                    if not math.isnan(row[name]):
+                        sub_values[sub_ap_index] = row[name]
+                values[ap_index] = max(sub_values)
+        x.append(values)
         y.append([row[axis] for axis in ["x", "y", "z"][:coordinate_dimensions]])
 
-    print(f"Example of x: {x[0]}")
-    print(f"Example of y: {y[0]}")
+    # print(f"Example of x: {x[0]}")
+    # print(f"Example of y: {y[0]}")
 
     # Define the model
     model = LinearRegression()
     # Fit the model
-    print("Training...")
+    # print("Training...")
     model.fit(x, y)
 
-    interface = c.NETWORK_INTERFACE
-    time_passed = time.time()
+    # interface = c.NETWORK_INTERFACE
+    # time_passed = time.time()
 
-    if test_df is None:  # TODO: Do we need this, Idk, maybe realtime, but then need other, dik think about
-        print("Predicting...")
+    if testing_df is None:
+        # TODO: Do we need this, Idk, maybe realtime, but then need other, dik think about
+        """# print("Predicting...")
         while True:
             access_points = scan_access_points(interface=interface)
             values = [0] * len(access_point_names)
@@ -71,18 +99,29 @@ def do_coordinates_predictions_with_fingerprinting(
             predictions = model.predict([values])
             # Summarize the prediction
             predictions = predictions[0]
-            print(f"{values} -> {predictions}")
+            # print(f"{values} -> {predictions}")
 
             if time.time() - time_passed >= 60:
                 break
-        print("Success!")
+        # print("Success!")"""
+        pass
     else:
+        if testing_batch_size:
+            testing_df = get_batch_mean_df(df=testing_df, batch_size=testing_batch_size)
 
-        values = [0] * len(access_point_names)
+        values = [nan_value] * len(access_point_names)
         total = 0.0
-        for index, row in test_df.iterrows():
+        for index, row in testing_df.iterrows():
             for ap_index, access_point in enumerate(access_point_names):
-                values[ap_index] = row[access_point]  # This assumes that there are no NaNs
+                if isinstance(access_point, str):
+                    if not math.isnan(row[access_point]):
+                        values[ap_index] = row[access_point]
+                else:
+                    sub_values = [nan_value] * len(access_point)
+                    for sub_ap_index, name in enumerate(access_point):
+                        if not math.isnan(row[name]):
+                            sub_values[sub_ap_index] = row[name]
+                    values[ap_index] = max(sub_values)
             actual_coordinates = [row[axis] for axis in ["x", "y", "z"][:coordinate_dimensions]]
 
             # Make a prediction
@@ -93,7 +132,8 @@ def do_coordinates_predictions_with_fingerprinting(
             distance_error = math.dist(actual_coordinates, predicted_coordinates)
             # print(f"Distance error: {distance_error}")
             total += distance_error
-        print(f"Error in distance: {total / len(test_df)}")
+        error_in_distance = (total / len(testing_df)) / 100
+        print(f"Error in distance: {error_in_distance:.2f}")
 
         """          total += 1
             if predictions == row['room_index']:
